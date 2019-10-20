@@ -7,6 +7,8 @@ library Transaction {
         uint len;
     }
     
+    using Transaction for RlpSlice;
+
     function bytesPacked(uint n) internal pure returns (bytes memory) {
         uint i;
         for (i = 8; i <= 256; i = i + 8) {
@@ -154,6 +156,18 @@ library Transaction {
         return ecrecover(bytes32(keccak256(unsignedtx)),uint8(v),bytes32(r),bytes32(s));
     }
 
+    function toUint(RlpSlice memory self, bytes memory data) internal pure returns(uint) {
+        return decodeUint(data, self.offset, self. len);
+    }
+
+    function toAddress(RlpSlice memory self, bytes memory data) internal pure returns(address) {
+        return address(self.toUint(data));
+    }
+
+    function toBytes(RlpSlice memory self, bytes memory data) internal pure returns(bytes memory) {
+        return getBytes(data,self.offset,self.len);
+    }
+
     function decode(bytes calldata rawTransaction, uint chainId) external pure returns (uint nonce, uint gasPrice, uint gasLimit, address to, uint value, address signer, bytes memory data) {
         RlpSlice[9] memory slices;
         bytes memory txencoded;
@@ -163,15 +177,19 @@ library Transaction {
 
         (slices,txencoded) = getSlices(rawTransaction);
 
-        nonce = decodeUint(rawTransaction,slices[0].offset,slices[0].len);
-        gasPrice = decodeUint(rawTransaction,slices[1].offset,slices[1].len);
-        gasLimit = decodeUint(rawTransaction,slices[2].offset,slices[2].len);
-        to = address(decodeUint(rawTransaction,slices[3].offset,slices[3].len));
-        value = decodeUint(rawTransaction,slices[4].offset,slices[4].len);
-        data = getBytes(rawTransaction,slices[5].offset,slices[5].len);
-        v = decodeUint(rawTransaction,slices[6].offset,slices[6].len);
-        r = decodeUint(rawTransaction,slices[7].offset,slices[7].len);
-        s = decodeUint(rawTransaction,slices[8].offset,slices[8].len);
+        nonce = slices[0].toUint(rawTransaction);
+        gasPrice = slices[1].toUint(rawTransaction);
+        gasLimit = slices[2].toUint(rawTransaction);
+        to = slices[3].toAddress(rawTransaction);
+        value = slices[4].toUint(rawTransaction);
+        data = slices[5].toBytes(rawTransaction);
+
+        /**
+         * Get v, r and s to know the signer
+         */
+        v = slices[6].toUint(rawTransaction);
+        r = slices[7].toUint(rawTransaction);
+        s = slices[8].toUint(rawTransaction);
         signer = getSignerAddress(txencoded,chainId,v,r,s);
     }
 }
